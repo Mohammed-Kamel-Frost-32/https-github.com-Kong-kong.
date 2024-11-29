@@ -22,6 +22,7 @@ local ngx_re_match = ngx.re.match
 local lower         = string.lower
 local max           = math.max
 local tab_new       = require("table.new")
+local CACHE_HEADERS = require("kong.constants").CACHE_HEADERS
 
 local EMPTY = require("kong.tools.table").EMPTY
 
@@ -542,15 +543,20 @@ end
 do
   local replace_dashes = require("kong.tools.string").replace_dashes
 
+  -- seems this is not correct? if having more than 100 headers, may not get ?
   function _M.get_header(name, ctx)
     local headers
+    local cache_flag = CACHE_HEADERS[1].FLAG
+    local cache_key = CACHE_HEADERS[1].KEY
     if ctx then
-      if not ctx.cached_request_headers then
-        ctx.cached_request_headers = ngx.req.get_headers()
-      end
+      -- if not ctx[cache_flag] then
+      --   ngx.log(ngx.WARN, "get_header should not go", ctx[cache_flag], "; ", tostring(ctx), "\n")
+      --   ctx[cache_flag] = true
+      --   ctx[cache_key] = ngx.req.get_headers()
+      -- end
 
-      headers = ctx.cached_request_headers
-
+      -- headers = ctx[cache_key]
+      headers = ngx.req.get_headers()
     else
       local value = ngx.var["http_" .. replace_dashes(name)]
       if not value or not value:find(", ", 1, true) then

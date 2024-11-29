@@ -98,7 +98,7 @@ local function new(self)
   function _REQUEST.get_scheme()
     check_phase(PHASES.request)
 
-    return var.scheme
+    return ngx.ctx.scheme or var.scheme
   end
 
 
@@ -116,7 +116,7 @@ local function new(self)
   function _REQUEST.get_host()
     check_phase(PHASES.request)
 
-    return var.host
+    return ngx.ctx.host or var.host
   end
 
 
@@ -437,7 +437,8 @@ local function new(self)
   function _REQUEST.get_raw_path()
     check_phase(PHASES.request)
 
-    local uri = var.request_uri or ""
+    -- local uri = var.request_uri or ""
+    local uri = ngx.ctx.request_uri or var.request_uri or ""
     local s = find(uri, "?", 2, true)
     return s and sub(uri, 1, s - 1) or uri
   end
@@ -456,7 +457,8 @@ local function new(self)
   -- kong.request.get_path_with_query() -- "/v1/movies?movie=foo"
   function _REQUEST.get_path_with_query()
     check_phase(PHASES.request)
-    return var.request_uri or ""
+    -- return var.request_uri or ""
+    return ngx.ctx.request_uri or var.request_uri or ""
   end
 
 
@@ -661,11 +663,18 @@ local function new(self)
   -- headers.x_custom_header -- "bla"
   -- headers.x_another[1]    -- "foo bar"
   -- headers["X-Another"][2] -- "baz"
+
   function _REQUEST.get_headers(max_headers)
+
     check_phase(PHASES.request)
 
     if max_headers == nil then
       return get_headers()
+      -- if not use_cache then
+      --   return get_headers()
+      -- else
+      --   return get_headers_cache()
+      -- end
     end
 
     if type(max_headers) ~= "number" then
@@ -676,6 +685,11 @@ local function new(self)
       error("max_headers must be <= " .. MAX_HEADERS, 2)
     end
 
+    -- if not use_cache then
+    --   return get_headers(max_headers)
+    -- else
+    --   return get_headers_cache(max_headers)
+    -- end
     return get_headers(max_headers)
   end
 

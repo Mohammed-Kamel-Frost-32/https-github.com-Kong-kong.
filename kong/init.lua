@@ -93,6 +93,7 @@ local pl_file = require "pl.file"
 local req_dyn_hook = require "kong.dynamic_hook"
 local uuid = require("kong.tools.uuid").uuid
 local kong_time = require("kong.tools.time")
+local clear_headers_cache = require("kong.header_cache_utils").clear_headers_cache
 
 
 local kong             = kong
@@ -1202,6 +1203,8 @@ function Kong.access()
 
   execute_collecting_plugins_iterator(plugins_iterator, "access", ctx)
 
+  -- clear headers cache after access phase execution
+  clear_headers_cache()
   if ctx.delayed_response then
     ctx.KONG_ACCESS_ENDED_AT = get_updated_now_ms()
     ctx.KONG_ACCESS_TIME = ctx.KONG_ACCESS_ENDED_AT - ctx.KONG_ACCESS_START
