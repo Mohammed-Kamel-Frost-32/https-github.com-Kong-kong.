@@ -32,6 +32,7 @@ local validate_client_cert = clustering_tls.validate_client_cert
 local CLUSTERING_PING_INTERVAL = constants.CLUSTERING_PING_INTERVAL
 
 
+local _log_prefix = "[rpc] "
 local RPC_MATA_V1 = "kong.meta.v1"
 local RPC_SNAPPY_FRAMED = "x-snappy-framed"
 
@@ -322,7 +323,7 @@ function _M:call(node_id, method, ...)
   local params = {...}
 
   ngx_log(ngx_DEBUG,
-    "[rpc] calling ", method,
+    _log_prefix, "calling ", method,
     "(node_id: ", node_id, ")",
     " via ", res == "local" and "local" or "concentrator"
   )
@@ -331,11 +332,11 @@ function _M:call(node_id, method, ...)
     res, err = self:_local_call(node_id, method, params)
 
     if not res then
-      ngx_log(ngx_DEBUG, "[rpc] ", method, " failed, err: ", err)
+      ngx_log(ngx_DEBUG, _log_prefix, method, " failed, err: ", err)
       return nil, err
     end
 
-    ngx_log(ngx_DEBUG, "[rpc] ", method, " succeeded")
+    ngx_log(ngx_DEBUG, _log_prefix, method, " succeeded")
 
     return res
   end
@@ -349,18 +350,18 @@ function _M:call(node_id, method, ...)
   local ok, err = fut:wait(5)
 
   if err then
-    ngx_log(ngx_DEBUG, "[rpc] ", method, " failed, err: ", err)
+    ngx_log(ngx_DEBUG, _log_prefix, method, " failed, err: ", err)
 
     return nil, err
   end
 
   if ok then
-    ngx_log(ngx_DEBUG, "[rpc] ", method, " succeeded")
+    ngx_log(ngx_DEBUG, _log_prefix, method, " succeeded")
 
     return fut.result
   end
 
-  ngx_log(ngx_DEBUG, "[rpc] ", method, " failed, err: ", fut.error.message)
+  ngx_log(ngx_DEBUG, _log_prefix, method, " failed, err: ", fut.error.message)
 
   return nil, fut.error.message
 end
@@ -377,7 +378,7 @@ function _M:notify(node_id, method, ...)
   local params = {...}
 
   ngx_log(ngx_DEBUG,
-    "[rpc] notifying ", method,
+    _log_prefix, "notifying ", method,
     "(node_id: ", node_id, ")",
     " via ", res == "local" and "local" or "concentrator"
   )
@@ -386,11 +387,11 @@ function _M:notify(node_id, method, ...)
     res, err = self:_local_call(node_id, method, params, true)
 
     if not res then
-      ngx_log(ngx_DEBUG, "[rpc] ", method, " failed, err: ", err)
+      ngx_log(ngx_DEBUG, _log_prefix, method, " failed, err: ", err)
       return nil, err
     end
 
-    ngx_log(ngx_DEBUG, "[rpc] ", method, " succeeded")
+    ngx_log(ngx_DEBUG, _log_prefix, method, " succeeded")
 
     return res
   end
@@ -422,7 +423,7 @@ function _M:handle_websocket()
   end
 
   if not meta_v1_supported then
-    ngx_log(ngx_ERR, "[rpc] unknown RPC protocol: " ..
+    ngx_log(ngx_ERR, _log_prefix, "unknown RPC protocol: " ..
                      tostring(rpc_protocol) ..
                      ", doesn't know how to communicate with client")
     return ngx_exit(ngx.HTTP_CLOSE)
@@ -430,7 +431,7 @@ function _M:handle_websocket()
 
   local cert, err = validate_client_cert(self.conf, self.cluster_cert, ngx_var.ssl_client_raw_cert)
   if not cert then
-    ngx_log(ngx_ERR, "[rpc] client's certificate failed validation: ", err)
+    ngx_log(ngx_ERR, _log_prefix, "client's certificate failed validation: ", err)
     return ngx_exit(ngx.HTTP_CLOSE)
   end
 
@@ -439,14 +440,14 @@ function _M:handle_websocket()
 
   local wb, err = server:new(WS_OPTS)
   if not wb then
-    ngx_log(ngx_ERR, "[rpc] unable to establish WebSocket connection with client: ", err)
+    ngx_log(ngx_ERR, _log_prefix, "unable to establish WebSocket connection with client: ", err)
     return ngx_exit(ngx.HTTP_CLOSE)
   end
 
   -- if timeout (default is 5s) we will close the connection
   local node_id, err = self:_handle_meta_call(wb)
   if not node_id then
-    ngx_log(ngx_ERR, "[rpc] unable to handshake with client: ", err)
+    ngx_log(ngx_ERR, _log_prefix, "unable to handshake with client: ", err)
     return ngx_exit(ngx.HTTP_CLOSE)
   end
 
@@ -458,7 +459,7 @@ function _M:handle_websocket()
   self:_remove_socket(s)
 
   if not res then
-    ngx_log(ngx_ERR, "[rpc] RPC connection broken: ", err, " node_id: ", node_id)
+    ngx_log(ngx_ERR, _log_prefix, "RPC connection broken: ", err, " node_id: ", node_id)
     return ngx_exit(ngx.ERROR)
   end
 
@@ -520,7 +521,7 @@ function _M:connect(premature, node_id, host, path, cert, key)
 
   local ok, err = c:connect(uri, opts)
   if not ok then
-    ngx_log(ngx_ERR, "[rpc] unable to connect to peer: ", err)
+    ngx_log(ngx_ERR, _log_prefix, "unable to connect to peer: ", err)
     goto err
   end
 
@@ -529,7 +530,7 @@ function _M:connect(premature, node_id, host, path, cert, key)
     -- FIXME: resp_headers should not be case sensitive
 
     if not resp_headers or not resp_headers["sec_websocket_protocol"] then
-      ngx_log(ngx_ERR, "[rpc] peer did not provide sec_websocket_protocol, node_id: ", node_id)
+      ngx_log(ngx_ERR, _log_prefix, "peer did not provide sec_websocket_protocol, node_id: ", node_id)
       c:send_close() -- can't do much if this fails
       goto err
     end
@@ -538,7 +539,7 @@ function _M:connect(premature, node_id, host, path, cert, key)
     local meta_cap = resp_headers["sec_websocket_protocol"]
 
     if meta_cap ~= RPC_MATA_V1 then
-      ngx_log(ngx_ERR, "[rpc] did not support protocol : ", meta_cap)
+      ngx_log(ngx_ERR, _log_prefix, "did not support protocol : ", meta_cap)
       c:send_close() -- can't do much if this fails
       goto err
     end
@@ -546,7 +547,7 @@ function _M:connect(premature, node_id, host, path, cert, key)
     -- if timeout (default is 5s) we will close the connection
     local ok, err = self:_meta_call(c, meta_cap, node_id)
     if not ok then
-      ngx_log(ngx_ERR, "[rpc] unable to handshake with server, node_id: ", node_id,
+      ngx_log(ngx_ERR, _log_prefix, "unable to handshake with server, node_id: ", node_id,
                        " err: ", err)
       c:send_close() -- can't do much if this fails
       goto err
@@ -561,7 +562,7 @@ function _M:connect(premature, node_id, host, path, cert, key)
     self:_remove_socket(s)
 
     if not ok then
-      ngx_log(ngx_ERR, "[rpc] connection to node_id: ", node_id, " broken, err: ",
+      ngx_log(ngx_ERR, _log_prefix, "connection to node_id: ", node_id, " broken, err: ",
               err, ", reconnecting in ", reconnection_delay, " seconds")
     end
   end
