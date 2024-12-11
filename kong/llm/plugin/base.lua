@@ -1,5 +1,6 @@
 local deflate_gzip = require("kong.tools.gzip").deflate_gzip
 local ai_plugin_ctx = require("kong.llm.plugin.ctx")
+local balancer = require("ngx.balancer")
 
 local get_global_ctx, _ = ai_plugin_ctx.get_global_accessors("_base")
 
@@ -93,6 +94,7 @@ end
 
 function MetaPlugin:retry(sub_plugin, conf)
   run_stage(STAGES.REQ_TRANSFORMATION, sub_plugin, conf)
+  balancer.recreate_request()
 end
 
 function MetaPlugin:rewrite(sub_plugin, conf)
